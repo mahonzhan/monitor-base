@@ -1,9 +1,9 @@
 #!/bin/bash
-# 2014/02/25 check_route.sh
+# 2014/03/25 check_route.sh
 
 dir="/usr/local/monitor-base"
 function getSubnet() {
-    [ $# -ne 1 ] && echo "Usage:`basename $0` <ip> <prefix>" && return 1
+    [ $# -ne 1 ] && echo "Usage:`basename $0` <ip/prefix>" && return 1
     ip=${1%/*}
     prefix=${1#*/}
     ipbin=`printf "%08d" $(echo "obase=2;$(echo $ip | tr '.' ';')" | bc)`
@@ -27,7 +27,7 @@ function getSubnet() {
 # if multi route, then get ip rule from subnet
 routeTableArray=(`egrep -v '^#|local|main|default|unspec' /etc/iproute2/rt_tables | awk '{print$2}'`)
 subnetArray=()
-if ! echo "${routeTableArray[@]}" | grep "cnc" >/dev/null && echo "${routeTableArray[@]}" | grep "tel" >/dev/null;then
+if ! ( echo "${routeTableArray[@]}" | grep "cnc" >/dev/null && echo "${routeTableArray[@]}" | grep "tel" >/dev/null );then
     echo "No need to check single route"
     exit 0
 fi
@@ -55,10 +55,9 @@ echo "=== check ip rule ==="
 /sbin/ip rule show | grep -v 'from all' >$dir/log/iprule.log
 for routeTable in ${routeTableArray[@]};do
     gw=`/sbin/ip route show table $routeTable | awk '{print$3}'`
-    ping -n -c1 -W1 $gw >/dev/null || $dir/bin/alarm.sh "$HOSTNAME gw alarm" "$routeTable's gateway $gw unreachable" "$HOSTNAME"
+    [ ! -z "$gw" ] && ( ping -n -c1 -W1 $gw >/dev/null || $dir/bin/alarm.sh "$HOSTNAME gw alarm" "$routeTable's gateway $gw unreachable" "$HOSTNAME" )
     subnet=`cat $dir/log/iprule.log | grep "$routeTable" | awk '{print$3}'`
-    subnetbin=`getSubnet $subnet`
-    subnetArray+=($subnetbin)
+    subnetbin=`getSubnet $subnet` && subnetArray+=($subnetbin)
 done
 
 # get ip address, then check if the ip is in the rule from subnet
